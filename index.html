@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Smart Travel Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<!-- Mapbox GL JS + Directions -->
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css" rel="stylesheet"/>
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
+<link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-directions/v4.1.1/mapbox-gl-directions.css" rel="stylesheet"/>
+<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-directions/v4.1.1/mapbox-gl-directions.js"></script>
+
+<style>
+:root{
+  --good:#16a34a;
+  --med:#f59e0b;
+  --bad:#dc2626;
+  --card:#ffffff;
+  --bg:#f3f4f6;
+  --ink:#111827;
+  --muted:#6b7280;
+  --ring: rgba(0,0,0,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,Roboto,Inter,Arial}
+header{padding:16px 20px;background:#111;color:#fff;font-weight:700;letter-spacing:.2px;display:flex;align-items:center;gap:10px}
+.container{max-width:1100px;margin:20px auto;padding:0 16px;display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:980px){.container{grid-template-columns: 1fr 1fr}}
+.card{background:var(--card);border-radius:16px;box-shadow:0 10px 30px var(--ring);padding:16px}
+#map{height:420px;border-radius:12px;overflow:hidden}
+h2{margin:0 0 8px;font-size:18px}
+.grid{display:grid;gap:16px}
+.grid-2{grid-template-columns:1fr;}
+.grid-3{grid-template-columns:1fr;}
+@media(min-width:980px){.grid-2{grid-template-columns:1fr 1fr}.grid-3{grid-template-columns:1fr 1fr 1fr}}
+.stat{display:flex;justify-content:space-between;gap:12px;color:var(--muted)}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:600}
+.good .badge{background: #dcfce7;color:var(--good)}
+.medium .badge{background:#fef3c7;color:var(--med)}
+.bad .badge{background:#fee2e2;color:var(--bad)}
+.colored{border-left:8px solid; padding-left:12px}
+.good.colored{border-color:var(--good)}
+.medium.colored{border-color:var(--med)}
+.bad.colored{border-color:var(--bad)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.mono{font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.muted{color:var(--muted)}
+.big{font-size:28px;font-weight:700}
+.section-title{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.msg{margin-top:6px;font-weight:600;font-size:13px;}
+.msg.good{color:var(--good)}
+.msg.medium{color:var(--med)}
+.msg.bad{color:var(--bad)}
+</style>
+</head>
+<body>
+<header>🌍 Smart Travel Dashboard</header>
+
+<div class="container">
+  <!-- Map -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div id="map"></div>
+  </div>
+
+  <!-- Summary -->
+  <div id="adviceCard" class="card colored medium">
+    <div class="section-title"><span>💡</span><h2 style="margin:0">Personalized Journey Summary</h2></div>
+    <div class="row"><span id="summaryBadge" class="badge">Analyzing…</span></div>
+    <div id="summaryText" style="margin-top:8px">Fetching current location and live data…</div>
+  </div>
+
+  <!-- Weather -->
+  <div id="weatherCard" class="card colored good">
+    <div class="section-title"><span>🌦️</span><h2 style="margin:0">Weather</h2></div>
+    <div class="row"><span id="weatherBadge" class="badge">Good</span></div>
+    <div class="grid grid-2" style="margin-top:8px">
+      <div>
+        <div class="stat"><span>Condition</span><span id="w-cond" class="mono">-</span></div>
+        <div class="stat"><span>Temperature</span><span><span id="w-temp" class="mono">-</span> °C</span></div>
+        <div class="stat"><span>Precipitation</span><span><span id="w-precip" class="mono">-</span> mm</span></div>
+      </div>
+      <div>
+        <div class="stat"><span>Wind</span><span><span id="w-wind" class="mono">-</span> kph</span></div>
+        <div class="stat"><span>Location</span><span id="w-loc" class="mono">-</span></div>
+        <div class="stat"><span>Updated</span><span id="w-upd" class="mono">-</span></div>
+      </div>
+    </div>
+    <!-- MESSAGE -->
+    <div id="weatherMsg" class="msg good">No alerts</div>
+  </div>
+
+  <!-- Traffic -->
+  <div id="trafficCard" class="card colored medium">
+    <div class="section-title"><span>🚗</span><h2 style="margin:0">Traffic & Route</h2></div>
+    <div class="row"><span id="trafficBadge" class="badge">Select a destination</span></div>
+    <div class="grid grid-2" style="margin-top:8px">
+      <div>
+        <div class="stat"><span>Destination</span><span id="t-dest" class="mono">-</span></div>
+        <div class="stat"><span>Distance</span><span><span id="t-dist" class="mono">-</span> km</span></div>
+        <div class="stat"><span>Duration</span><span><span id="t-dur" class="mono">-</span> min</span></div>
+      </div>
+      <div>
+        <div class="stat"><span>Avg speed</span><span><span id="t-speed" class="mono">-</span> km/h</span></div>
+        <div class="stat"><span>Recommendation</span><span id="t-reco" class="mono">-</span></div>
+        <div class="stat"><span>Note</span><span id="t-note" class="mono">Set a route to see live advice</span></div>
+      </div>
+    </div>
+    <!-- MESSAGE -->
+    <div id="trafficMsg" class="msg medium">No traffic alerts</div>
+  </div>
+
+  <!-- Air Quality -->
+  <div id="airCard" class="card colored medium">
+    <div class="section-title"><span>🌫️</span><h2 style="margin:0">Air Quality</h2></div>
+    <div class="row"><span id="airBadge" class="badge">Fetching…</span></div>
+    <div class="grid grid-2" style="margin-top:8px">
+      <div>
+        <div class="stat"><span>City / Station</span><span id="a-station" class="mono">-</span></div>
+        <div class="stat"><span>Pollutant</span><span id="a-pol" class="mono">-</span></div>
+      </div>
+      <div>
+        <div class="stat"><span>Avg</span><span id="a-avg" class="mono">-</span></div>
+        <div class="stat"><span>Updated</span><span id="a-upd" class="mono">-</span></div>
+      </div>
+    </div>
+    <!-- MESSAGE -->
+    <div id="airMsg" class="msg good">No alerts</div>
+  </div>
+</div>
+
+<script>
+/* ===================== CONFIG ===================== */
+const MAPBOX_TOKEN = "pk.eyJ1IjoiYXJlbmEyMDA2IiwiYSI6ImNtZW16a2JkczB0MmkybXM1dHZuMXNheDMifQ.k-U63kPycWAbB7Xn8dsQ8w";
+const WEATHER_KEY  = "4204f98a75d04942928103840252208";
+const POLLUTION_API = "https://api.data.gov.in/resource/3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69?api-key=579b464db66ec23bdd000001cdc3b564546246a772a26393094f5645&offset=0&limit=all&format=json";
+
+/* ===================== MAP INIT ===================== */
+mapboxgl.accessToken = MAPBOX_TOKEN;
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/traffic-day-v2',
+  center: [77.5946,12.9716],
+  zoom: 12
+});
+map.addControl(new mapboxgl.NavigationControl());
+const directions = new MapboxDirections({
+  accessToken: MAPBOX_TOKEN,
+  unit: 'metric',
+  profile: 'mapbox/driving-traffic',
+  alternatives: false,
+  geometries: 'geojson'
+});
+map.addControl(directions, 'top-left');
+
+let originLL = null;
+
+/* ===================== UTIL ===================== */
+const $ = sel => document.querySelector(sel);
+function setCardState(el, status){
+  el.classList.remove('good','medium','bad');
+  el.classList.add(status);
+}
+function worstStatus(...statuses){
+  if(statuses.includes('bad')) return 'bad';
+  if(statuses.includes('medium')) return 'medium';
+  return 'good';
+}
+function statusBadge(el, status, text){
+  el.textContent = text || (status==='good'?'Good':status==='medium'?'Medium':'Bad');
+}
+function fmtKm(m){ return (m/1000).toFixed(1) }
+function fmtMin(s){ return Math.round(s/60) }
+function haversine(lat1,lon1,lat2,lon2){
+  const toRad = d=>d*Math.PI/180;
+  const R=6371;
+  const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function normalizeName(s){ return (s||'').toLowerCase().replace(/[\s_]/g,'') }
+
+/* ===================== WEATHER ===================== */
+async function fetchWeatherByLatLon(lat, lon){
+  const res = await fetch(`https://api.weatherapi.com/v1/current.json?key=${WEATHER_KEY}&q=${lat},${lon}`);
+  return res.json();
+}
+function gradeWeather(current){
+  const cond = (current.condition?.text || '').toLowerCase();
+  const precip = Number(current.precip_mm||0);
+  const wind = Number(current.wind_kph||0);
+  if(precip > 4 || cond.includes('thunder') || wind >= 35) return 'bad';
+  if(precip > 0 || wind >= 20 || cond.includes('rain') || cond.includes('storm')) return 'medium';
+  return 'good';
+}
+async function updateWeather(lat, lon){
+  try{
+    const data = await fetchWeatherByLatLon(lat,lon);
+    $('#w-cond').textContent = data.current.condition.text || '-';
+    $('#w-temp').textContent = data.current.temp_c ?? '-';
+    $('#w-precip').textContent = data.current.precip_mm ?? '-';
+    $('#w-wind').textContent = data.current.wind_kph ?? '-';
+    $('#w-loc').textContent = `${data.location.name}, ${data.location.region}`;
+    $('#w-upd').textContent = data.current.last_updated ?? '-';
+    const wStatus = gradeWeather(data.current);
+    setCardState($('#weatherCard'), wStatus);
+    statusBadge($('#weatherBadge'), wStatus, wStatus[0].toUpperCase()+wStatus.slice(1));
+    // MESSAGE
+    let msg = 'All clear';
+    if(wStatus==='medium') msg = '⚠️ Moderate conditions, drive carefully';
+    else if(wStatus==='bad') msg = '⚠️ Severe weather, avoid travel if possible';
+    $('#weatherMsg').textContent = msg;
+    $('#weatherMsg').className = `msg ${wStatus}`;
+    return {status:wStatus, meta:data};
+  }catch(e){
+    console.error(e);
+    $('#weatherMsg').textContent = '⚠️ Weather data unavailable';
+    $('#weatherMsg').className = 'msg medium';
+    setCardState($('#weatherCard'),'medium');
+    statusBadge($('#weatherBadge'),'medium','Unavailable');
+    return {status:'medium', meta:null};
+  }
+}
+
+/* ===================== AIR QUALITY ===================== */
+async function fetchPollutionNearest(lat, lon, hintCity='', hintState=''){
+  const res = await fetch(POLLUTION_API);
+  const js = await res.json();
+  const recs = js.records || [];
+  if(!recs.length) return null;
+  const normCity = normalizeName(hintCity);
+  const normState = normalizeName(hintState);
+  let filtered = recs.filter(r=>{
+    const rc = normalizeName(r.city);
+    const rs = normalizeName(r.state);
+    return (normCity && rc.includes(normCity)) || (normState && rs.includes(normState));
+  });
+  if(filtered.length===0) filtered = recs;
+  let best = null, bestD = Infinity;
+  for(const r of filtered){
+    const la = parseFloat(r.latitude), lo = parseFloat(r.longitude);
+    if(Number.isFinite(la) && Number.isFinite(lo)){
+      const d = haversine(lat,lon,la,lo);
+      if(d < bestD){ bestD = d; best = r; }
+    }
+  }
+  return best;
+}
+function gradePollution(avg){
+  const v = Number(avg||0);
+  if(v <= 50) return 'good';
+  if(v <= 100) return 'medium';
+  return 'bad';
+}
+async function updateAir(lat, lon, locHint){
+  try{
+    const rec = await fetchPollutionNearest(lat, lon, locHint?.city, locHint?.state);
+    if(!rec){
+      $('#a-station').textContent = '-';
+      $('#a-pol').textContent = '-';
+      $('#a-avg').textContent = '-';
+      $('#a-upd').textContent = '-';
+      setCardState($('#airCard'),'medium');
+      statusBadge($('#airBadge'),'medium','No data');
+      $('#airMsg').textContent = '⚠️ Air quality data unavailable';
+      $('#airMsg').className = 'msg medium';
+      return {status:'medium', meta:null};
+    }
+    $('#a-station').textContent = `${rec.city} / ${rec.station}`;
+    $('#a-pol').textContent = rec.pollutant_id;
+    $('#a-avg').textContent = rec.avg_value;
+    $('#a-upd').textContent = rec.last_update || '-';
+    const aStatus = gradePollution(rec.avg_value);
+    setCardState($('#airCard'), aStatus);
+    statusBadge($('#airBadge'), aStatus, aStatus[0].toUpperCase()+aStatus.slice(1));
+    let msg = 'All clear';
+    if(aStatus==='medium') msg = '⚠️ Moderate air, sensitive groups take care';
+    else if(aStatus==='bad') msg = '⚠️ Poor air quality, wear a mask 😷';
+    $('#airMsg').textContent = msg;
+    $('#airMsg').className = `msg ${aStatus}`;
+    return {status:aStatus, meta:rec};
+  }catch(e){
+    console.error(e);
+    $('#airMsg').textContent = '⚠️ Air quality data unavailable';
+    $('#airMsg').className = 'msg medium';
+    setCardState($('#airCard'),'medium');
+    statusBadge($('#airBadge'),'medium','Unavailable');
+    return {status:'medium', meta:null};
+  }
+}
+
+/* ===================== TRAFFIC / ROUTE ===================== */
+function gradeTraffic(distanceM, durationS){
+  if(!distanceM || !durationS) return {status:'medium', avgSpeed:null};
+  const km = distanceM/1000;
+  const h = durationS/3600;
+  const v = km / h;
+  let status = 'good';
+  if(v < 25) status = 'bad';
+  else if(v < 40) status = 'medium';
+  return {status, avgSpeed: Math.round(v)};
+}
+function transportReco(distanceKm){
+  if(distanceKm < 3) return 'Walk/Bike';
+  if(distanceKm < 25) return 'Car/Taxi';
+  if(distanceKm < 60) return 'Cab/Intercity Bus';
+  return 'Train/Intercity Bus';
+}
+function updateTrafficUI(route, destPlace){
+  if(!route){ 
+    setCardState($('#trafficCard'),'medium');
+    statusBadge($('#trafficBadge'),'medium','Set a route');
+    $('#t-dest').textContent = '-';
+    $('#t-dist').textContent = '-';
+    $('#t-dur').textContent = '-';
+    $('#t-speed').textContent = '-';
+    $('#t-reco').textContent = '-';
+    $('#t-note').textContent = 'Set a route to see live advice';
+    $('#trafficMsg').textContent = 'No traffic alerts';
+    $('#trafficMsg').className = 'msg medium';
+    return {status:'medium',distanceKm:0,durationMin:0};
+  }
+  const km = Number(fmtKm(route.distance));
+  const min = fmtMin(route.duration);
+  const g = gradeTraffic(route.distance, route.duration);
+  setCardState($('#trafficCard'), g.status);
+  statusBadge($('#trafficBadge'), g.status, g.status[0].toUpperCase()+g.status.slice(1));
+  $('#t-dest').textContent = destPlace || 'Destination';
+  $('#t-dist').textContent = km;
+  $('#t-dur').textContent = min;
+  $('#t-speed').textContent = g.avgSpeed ?? '-';
+  $('#t-reco').textContent = transportReco(km);
+  $('#t-note').textContent = route.weight_name ? `Profile: ${route.weight_name}` : 'Traffic-aware timing';
+  let msg = 'No traffic alerts';
+  if(g.status==='medium') msg = '⚠️ Moderate traffic, expect minor delays';
+  else if(g.status==='bad') msg = '⚠️ Heavy congestion; start early ⏰';
+  $('#trafficMsg').textContent = msg;
+  $('#trafficMsg').className = `msg ${g.status}`;
+  return {status:g.status, distanceKm:km, durationMin:min, avgSpeed:g.avgSpeed};
+}
+
+/* ===================== SUMMARY ===================== */
+function buildSummary(weather, traffic, air, destPlace){
+  const worst = worstStatus(weather.status, traffic.status, air.status);
+  setCardState($('#adviceCard'), worst);
+  statusBadge($('#summaryBadge'), worst, worst==='good'?'Looks good':'Needs attention');
+
+  const lines = [];
+  if(destPlace){
+    lines.push(`Route to <b>${destPlace}</b>: <b>${traffic.distanceKm}</b> km, ~<b>${traffic.durationMin}</b> min.`);
+  } else {
+    lines.push(`Showing current location conditions. Set a destination to get route-aware advice.`);
+  }
+
+  if(weather.meta){
+    const c = weather.meta.current;
+    if(c.precip_mm>0) lines.push(`🌧️ ${c.condition.text} • ${c.temp_c}°C • precipitation ${c.precip_mm} mm.`);
+    else lines.push(`⛅ ${c.condition.text} • ${c.temp_c}°C.`);
+  }
+
+  if(air.meta){
+    const avg = Number(air.meta.avg_value);
+    let airTxt = `AQ (${air.meta.pollutant_id}) avg ${avg}`;
+    if(air.status==='bad') airTxt += ' → poor air, consider mask 😷';
+    else if(air.status==='medium') airTxt += ' → moderate, sensitive groups take care';
+    lines.push(`🌫️ ${airTxt}.`);
+  }
+
+  const extras = [];
+  if(traffic.status==='bad') extras.push('Heavy congestion expected; start early ⏰');
+  if(weather.status!=='good'){
+    if(weather.meta?.current?.precip_mm>2) extras.push('Carry rain gear & drive slower');
+    if((weather.meta?.current?.condition?.text||'').toLowerCase().includes('thunder')) extras.push('Avoid open areas (thunderstorm)');
+  }
+  if(air.status==='bad') extras.push('Avoid open-air transport if possible');
+
+  if(extras.length) lines.push('⚠️ ' + extras.join(' • '));
+  else lines.push('✅ Conditions look good. Safe journey!');
+
+  $('#summaryText').innerHTML = lines.join('<br>');
+}
+
+/* ===================== FLOW ===================== */
+async function refreshCurrentLocationBlocks(lat, lon){
+  const w = await updateWeather(lat, lon);
+  const hint = w.meta ? {city:w.meta.location.name, state:w.meta.location.region} : {};
+  const a = await updateAir(lat, lon, hint);
+  const t = updateTrafficUI(null, null);
+  buildSummary(w, t, a, null);
+}
+
+if(navigator.geolocation){
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    originLL = [pos.coords.longitude, pos.coords.latitude];
+    map.setCenter(originLL);
+    directions.setOrigin(originLL);
+    await refreshCurrentLocationBlocks(originLL[1], originLL[0]);
+  }, async _err=>{
+    originLL = [77.5946,12.9716];
+    directions.setOrigin(originLL);
+    await refreshCurrentLocationBlocks(originLL[1], originLL[0]);
+  }, {enableHighAccuracy:true, timeout:8000});
+}else{
+  originLL = [77.5946,12.9716];
+  directions.setOrigin(originLL);
+  refreshCurrentLocationBlocks(originLL[1], originLL[0]);
+}
+
+directions.on('route', async (e)=>{
+  if(!e.route?.length) return;
+  const route = e.route[0];
+  const dest = directions.getDestination();
+  const destPlace = dest?.place_name || 'Destination';
+  const [lng, lat] = dest?.geometry?.coordinates || [];
+  const w = await updateWeather(lat, lng);
+  const a = await updateAir(lat, lng, {city:w.meta?.location?.name, state:w.meta?.location?.region});
+  const t = updateTrafficUI(route, destPlace);
+  buildSummary(w, t, a, destPlace);
+});
+</script>
+</body>
+</html>

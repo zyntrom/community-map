@@ -1,7 +1,0 @@
-# Ignore node_modules everywhere
-frontend/node_modules/
-backend/node_modules/
-
-# Or simply ignore all node_modules in any subfolder
-**/node_modules/
-
